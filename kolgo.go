@@ -50,6 +50,7 @@ const (
     Public  = iota
     Private
     Event
+    System
 )
 func (kol *relay) AddHandler(eventType int, cb handlerInterface) {
     handlers, ok := kol.handlers.Load(eventType)
@@ -176,6 +177,8 @@ func MessageTypeFromMessage(message ChatMessage) int {
         return Event
     } else if message.Type == "public" {
         return Public
+    } else if message.Type == "system" {
+        return System
     } else {
         return -1
     }
