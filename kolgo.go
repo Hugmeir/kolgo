@@ -35,6 +35,8 @@ type KoLRelay interface {
     PollChat()                 ([]byte, error)
     Uneffect(string)           ([]byte, error)
     DecodeChat([]byte)         (*ChatResponse, error)
+    SenderIdFromMessage(ChatMessage) string
+
 
     StartChatPoll(string)
     HandleKoLException(error, string)  error
