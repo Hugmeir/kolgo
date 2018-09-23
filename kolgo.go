@@ -27,23 +27,41 @@ const (
     uneffectUrl      = baseUrl + "uneffect.php"
 )
 
+type MsgType int
+const (
+    Command MsgType = iota
+    Message
+)
+
+type MessageToKoL struct {
+    Destination string
+    Message     string
+    Time        time.Time
+    Type        MsgType
+}
+
 type handlerInterface func(KoLRelay, ChatMessage)
 type KoLRelay interface {
     LogIn(string)              error
     LogOut()                   ([]byte, error)
+    StartChatPoll(string)
+    StartMessagePoll(string)
+    HandleKoLException(error, string)  error
+    AddHandler(int, handlerInterface)
+    SendMessage(*MessageToKoL)
+
+
+    // Not-so-public interface:
     SubmitChat(string, string) ([]byte, error)
     PollChat()                 ([]byte, error)
     Uneffect(string)           ([]byte, error)
     DecodeChat([]byte)         (*ChatResponse, error)
     SenderIdFromMessage(ChatMessage) string
 
-
-    StartChatPoll(string)
-    HandleKoLException(error, string)  error
+    ResetAwayTicker()
 
     PlayerId() string
 
-    AddHandler(int, handlerInterface)
 }
 
 const (
@@ -61,6 +79,10 @@ func (kol *relay) AddHandler(eventType int, cb handlerInterface) {
     }
 }
 
+func (kol *relay) SendMessage(msg *MessageToKoL) {
+    kol.MessagesC <- msg
+}
+
 type relay struct {
     UserName      string
     HttpClient    *http.Client
@@ -71,6 +93,9 @@ type relay struct {
 
     Log           *os.File
     handlers      sync.Map
+
+    AwayTicker    *time.Ticker
+    MessagesC     chan *MessageToKoL
 }
 
 func NewKoL(userName string, f *os.File) KoLRelay {
@@ -95,8 +120,10 @@ func NewKoL(userName string, f *os.File) KoLRelay {
         HttpClient: httpClient,
         LastSeen:   "0",
         playerId:   "3152049", // TODO
+        AwayTicker: time.NewTicker(3*time.Minute),
         PasswordHash: "",
 
+        MessagesC: make(chan *MessageToKoL, 200),
         Log: f,
     }
 
@@ -184,6 +211,61 @@ func MessageTypeFromMessage(message ChatMessage) int {
     }
 }
 
+func (kol *relay)StartMessagePoll(password string) {
+    // Set up some super conservative rate limiting:
+    throttle := time.Tick( 1 * time.Second )
+    for { // just an infinite loop
+        // select waits until ticker ticks over, then runs this code
+        select {
+            case msg := <-kol.MessagesC:
+                elapsed := time.Now().Sub(msg.Time).Seconds()
+                if elapsed > 30 {
+                    // Stop relaying old messages.
+                    continue
+                }
+                // First, disarm the away ticker:
+                if msg.Type != Command {
+                    // Make sure we aren't massively spamming the game:
+                    <-throttle
+                }
+
+                // Actually send the message to the game:
+                _, err := kol.SubmitChat(msg.Destination, msg.Message)
+                if err == nil {
+                    continue
+                }
+
+                // Got an error!
+                fatalError := kol.HandleKoLException(err, password)
+                if fatalError != nil {
+                    fmt.Println("Got an error submitting to kol?!")
+                    panic(fatalError)
+                }
+
+                // Exception was handled, so retry:
+                _, err = kol.SubmitChat(msg.Destination, msg.Message)
+                if err != nil {
+                    kolError, ok := err.(*KoLError)
+                    if !ok {
+                        // Well, we tried, silver star.  Die:
+                        panic(err)
+                    }
+                    if kolError.ErrorType == BadRequest || kolError.ErrorType == ServerError {
+                        // Eh, it was logged, just drop it
+                        continue
+                    }
+                    panic(err)
+                }
+            case <-kol.AwayTicker.C:
+                _, err := kol.SubmitChat("/who", "clan")
+                fatalError := kol.HandleKoLException(err, password)
+                if fatalError != nil {
+                    panic(fatalError)
+                }
+        }
+    }
+}
+
 func (kol *relay)StartChatPoll(password string) {
 
     // Poll every 3 seconds:
@@ -243,6 +325,8 @@ func (kol *relay)StartChatPoll(password string) {
 }
 
 func (kol *relay) LogOut() ([]byte, error) {
+    defer kol.AwayTicker.Stop()
+
     httpClient := kol.HttpClient
     req, err := http.NewRequest("GET", logoutUrl, nil)
     if err != nil {
@@ -351,7 +435,16 @@ func (error *KoLError) Error() string {
     return error.ErrorMsg
 }
 
+func (kol *relay)ResetAwayTicker() {
+    if kol.AwayTicker != nil {
+        kol.AwayTicker.Stop()
+    }
+    kol.AwayTicker = time.NewTicker(3*time.Minute)
+}
+
 func (kol *relay) SubmitChat(destination string, message string) ([]byte, error) {
+    kol.ResetAwayTicker()
+
     httpClient  := kol.HttpClient
     msg         := destination + url.QueryEscape(" " + message)
     finalUrl   := fmt.Sprintf("%s?playerid=%d&pwd=%s&j=1&graf=%s", submitMessageUrl, kol.playerId, kol.PasswordHash, msg)
