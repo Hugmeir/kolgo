@@ -48,7 +48,8 @@ type KoLRelay interface {
     StartMessagePoll(string)
     HandleKoLException(error, string)  error
     AddHandler(int, handlerInterface)
-    SendMessage(*MessageToKoL)
+    SendMessage(string, string)
+    SendCommand(string, string)
 
 
     // Not-so-public interface:
@@ -79,7 +80,15 @@ func (kol *relay) AddHandler(eventType int, cb handlerInterface) {
     }
 }
 
-func (kol *relay) SendMessage(msg *MessageToKoL) {
+func (kol *relay) SendCommand(d string, m string ) {
+    now := time.Now()
+    msg := &MessageToKoL{ d, m, now, Command }
+    kol.MessagesC <- msg
+}
+
+func (kol *relay) SendMessage(d string, m string ) {
+    now := time.Now()
+    msg := &MessageToKoL{ d, m, now, Message }
     kol.MessagesC <- msg
 }
 
