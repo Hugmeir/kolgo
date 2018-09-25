@@ -278,7 +278,8 @@ func (kol *relay)StartMessagePoll(password string) {
 func (kol *relay)StartChatPoll(password string) {
 
     // Poll every 3 seconds:
-    ticker := time.NewTicker(3*time.Second)
+    pollDelay := 3 * time.Second
+    ticker := time.NewTicker(pollDelay)
     defer ticker.Stop()
 
     for { // just an infinite loop
@@ -313,6 +314,26 @@ func (kol *relay)StartChatPoll(password string) {
                 continue
             }
 
+            newDelay := pollDelay
+            switch chatResponses.Delay.(type) {
+                case string:
+                    i, _ := strconv.Atoi(chatResponses.Delay.(string))
+                    newDelay = time.Duration(i) * time.Millisecond
+                case int:
+                    newDelay    = time.Duration(chatResponses.Delay.(int)) * time.Millisecond
+                case int64:
+                    newDelay    = time.Duration(chatResponses.Delay.(int64)) * time.Millisecond
+                case float64:
+                    newDelay    = time.Duration(chatResponses.Delay.(float64)) * time.Millisecond
+            }
+
+            if newDelay != pollDelay && newDelay < 10 && newDelay >= 2 {
+                fmt.Println("Changed the polling interval to ", newDelay)
+                pollDelay = newDelay
+                ticker.Stop()
+                ticker = time.NewTicker(pollDelay)
+            }
+
             for i := 0; i < len(chatResponses.Msgs); i++ {
                 message  := chatResponses.Msgs[i]
                 senderId := kol.SenderIdFromMessage(message)
@@ -326,6 +347,9 @@ func (kol *relay)StartChatPoll(password string) {
                     continue
                 }
                 for _, cb := range handlers.([]handlerInterface) {
+                    // TODO: This is what causes messages to show up out of order
+                    // Blocking per-message and go'ing the entire loop instead
+                    // is likely a more reasonable approach
                     go cb(kol, message)
                 }
             }
