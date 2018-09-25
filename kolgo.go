@@ -483,7 +483,7 @@ func (kol *relay) SubmitChat(destination string, message string) ([]byte, error)
 
     httpClient  := kol.HttpClient
     msg         := destination + url.QueryEscape(" " + message)
-    finalUrl   := fmt.Sprintf("%s?playerid=%d&pwd=%s&j=1&graf=%s", submitMessageUrl, kol.playerId, kol.PasswordHash, msg)
+    finalUrl   := fmt.Sprintf("%s?playerid=%s&pwd=%s&j=1&graf=%s", submitMessageUrl, kol.playerId, kol.PasswordHash, msg)
     req, err := http.NewRequest("POST", finalUrl, nil)
     if err != nil {
         return nil, err
@@ -564,7 +564,7 @@ func CheckResponseForErrors(resp *http.Response, body []byte) error {
 /*GET inv_spleen.php?whichitem=1455&ajax=1&pwd=9059a8720a363a243871f6d5594ba897&quantity=1&_=1537894093043*/
 func (kol *relay)InvSpleen(itemId string) ([]byte, error) {
     httpClient := kol.HttpClient
-    finalUrl   := fmt.Sprintf("%s?whichitem=%d&pwd=%s&ajax=1&quantity=1", invSpleenUrl, itemId, kol.PasswordHash)
+    finalUrl   := fmt.Sprintf("%s?whichitem=%s&pwd=%s&ajax=1&quantity=1", invSpleenUrl, itemId, kol.PasswordHash)
     req, err   := http.NewRequest("GET", finalUrl, nil)
     if err != nil {
         return nil, err
