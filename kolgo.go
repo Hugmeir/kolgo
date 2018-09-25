@@ -334,29 +334,30 @@ func (kol *relay)StartChatPoll(password string) {
                 ticker = time.NewTicker(pollDelay)
             }
 
-            for i := 0; i < len(chatResponses.Msgs); i++ {
-                message  := chatResponses.Msgs[i]
-                senderId := kol.SenderIdFromMessage(message)
-                if senderId == kol.PlayerId() {
-                    continue
-                }
-
-                t := MessageTypeFromMessage(message)
-                handlers, ok := kol.handlers.Load(t)
-                if !ok {
-                    continue
-                }
-                for _, cb := range handlers.([]handlerInterface) {
-                    // TODO: This is what causes messages to show up out of order
-                    // Blocking per-message and go'ing the entire loop instead
-                    // is likely a more reasonable approach
-                    go cb(kol, message)
-                }
+            if chatResponses.Msgs != nil && len(chatResponses.Msgs) > 0 {
+                go InvokeChatResponseHandlers(kol, chatResponses)
             }
         }
     }
 }
 
+func InvokeChatResponseHandlers(kol *relay, chatResponses *ChatResponse) {
+    for _, message := range chatResponses.Msgs {
+        senderId := kol.SenderIdFromMessage(message)
+        if senderId == kol.PlayerId() {
+            continue
+        }
+
+        t := MessageTypeFromMessage(message)
+        handlers, ok := kol.handlers.Load(t)
+        if !ok {
+            continue
+        }
+        for _, cb := range handlers.([]handlerInterface) {
+            cb(kol, message)
+        }
+    }
+}
 func (kol *relay) LogOut() ([]byte, error) {
     defer kol.AwayTicker.Stop()
 
