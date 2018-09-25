@@ -25,6 +25,7 @@ const (
     submitMessageUrl = baseUrl + "submitnewchat.php"
     lChatUrl         = baseUrl + "lchat.php"
     uneffectUrl      = baseUrl + "uneffect.php"
+    invSpleenUrl     = baseUrl + "inv_spleen.php"
 )
 
 type MsgType int
@@ -55,6 +56,7 @@ type KoLRelay interface {
     // Not-so-public interface:
     SubmitChat(string, string) ([]byte, error)
     PollChat()                 ([]byte, error)
+    InvSpleen(string)          ([]byte, error)
     Uneffect(string)           ([]byte, error)
     DecodeChat([]byte)         (*ChatResponse, error)
     SenderIdFromMessage(ChatMessage) string
@@ -557,6 +559,25 @@ func CheckResponseForErrors(resp *http.Response, body []byte) error {
     }
 
     return nil
+}
+
+/*GET inv_spleen.php?whichitem=1455&ajax=1&pwd=9059a8720a363a243871f6d5594ba897&quantity=1&_=1537894093043*/
+func (kol *relay)InvSpleen(itemId string) ([]byte, error) {
+    httpClient := kol.HttpClient
+    finalUrl   := fmt.Sprintf("%s?whichitem=%d&pwd=%s&ajax=1&quantity=1", invSpleenUrl, itemId, kol.PasswordHash)
+    req, err   := http.NewRequest("GET", finalUrl, nil)
+    if err != nil {
+        return nil, err
+    }
+
+    resp, err := httpClient.Do(req)
+    if err != nil {
+        return nil, err
+    }
+    defer resp.Body.Close()
+    body, _ := ioutil.ReadAll(resp.Body)
+    return body, CheckResponseForErrors(resp, body)
+
 }
 
 /*
