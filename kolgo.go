@@ -25,7 +25,9 @@ const (
     submitMessageUrl = baseUrl + "submitnewchat.php"
     lChatUrl         = baseUrl + "lchat.php"
     uneffectUrl      = baseUrl + "uneffect.php"
+    invUseUrl        = baseUrl + "inv_use.php"
     invSpleenUrl     = baseUrl + "inv_spleen.php"
+    multiuseUrl      = baseUrl + "multiuse.php"
 )
 
 type MsgType int
@@ -56,6 +58,7 @@ type KoLRelay interface {
     // Not-so-public interface:
     SubmitChat(string, string) ([]byte, error)
     PollChat()                 ([]byte, error)
+    InvUse(string, int)        ([]byte, error)
     InvSpleen(string)          ([]byte, error)
     Uneffect(string)           ([]byte, error)
     DecodeChat([]byte)         (*ChatResponse, error)
@@ -559,6 +562,31 @@ func CheckResponseForErrors(resp *http.Response, body []byte) error {
     }
 
     return nil
+}
+
+/*GET inv_use.php?pwd=f4f8b4fa4058649c98df8676a77e288c&which=3&whichitem=2614&ajax=1&_=1538049902643 */
+/*GET multiuse.php?whichitem=9926&action=useitem&ajax=1&quantity=5&pwd=f4f8b4fa4058649c98df8676a77e288c&_=1538049978485 */
+func (kol *relay)InvUse(itemId string, quantity int) ([]byte, error) {
+    httpClient := kol.HttpClient
+    var finalUrl string
+    if quantity > 1 {
+        finalUrl = fmt.Sprintf("%s?whichitem=%s&action=useitem&ajax=1&quantity=%d&pwd=%s", multiuseUrl, itemId, quantity, kol.PasswordHash)
+    } else {
+        finalUrl = fmt.Sprintf("%s?whichitem=%s&pwd=%s&ajax=1&quantity=%d", invUseUrl, itemId, kol.PasswordHash, quantity)
+    }
+
+    req, err   := http.NewRequest("GET", finalUrl, nil)
+    if err != nil {
+        return nil, err
+    }
+
+    resp, err := httpClient.Do(req)
+    if err != nil {
+        return nil, err
+    }
+    defer resp.Body.Close()
+    body, _ := ioutil.ReadAll(resp.Body)
+    return body, CheckResponseForErrors(resp, body)
 }
 
 /*GET inv_spleen.php?whichitem=1455&ajax=1&pwd=9059a8720a363a243871f6d5594ba897&quantity=1&_=1537894093043*/
