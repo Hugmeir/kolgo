@@ -401,6 +401,7 @@ type ChatMessage struct {
     Channel      string    `json:"channel"`
     ChannelColor string    `json:"channelcolor"`
     Time         interface{}    `json:"time"`
+    Link         interface{}    `json:"link"` // usually missing, sometimes false (bool), sometimes a string ("clan_hall.php")
 }
 type ChatResponse struct {
     Msgs  []ChatMessage  `json:"msgs"`
