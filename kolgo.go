@@ -28,6 +28,7 @@ const (
     invUseUrl        = baseUrl + "inv_use.php"
     invSpleenUrl     = baseUrl + "inv_spleen.php"
     multiuseUrl      = baseUrl + "multiuse.php"
+    clanHallUrl      = baseUrl + "clan_hall.php"
 )
 
 type MsgType int
@@ -58,6 +59,7 @@ type KoLRelay interface {
     // Not-so-public interface:
     SubmitChat(string, string) ([]byte, error)
     PollChat()                 ([]byte, error)
+    ClanHall()                 ([]byte, error)
     InvUse(string, int)        ([]byte, error)
     InvSpleen(string)          ([]byte, error)
     Uneffect(string)           ([]byte, error)
@@ -363,6 +365,24 @@ func InvokeChatResponseHandlers(kol *relay, chatResponses *ChatResponse) {
         }
     }
 }
+
+func (kol *relay)ClanHall() ([]byte, error) {
+    httpClient := kol.HttpClient
+    req, err := http.NewRequest("GET", clanHallUrl, nil)
+    if err != nil {
+        return nil, err
+    }
+
+    resp, err := httpClient.Do(req)
+    if err != nil {
+        return nil, err
+    }
+    defer resp.Body.Close()
+
+    body, _ := ioutil.ReadAll(resp.Body)
+    return body, CheckResponseForErrors(resp, body)
+}
+
 func (kol *relay) LogOut() ([]byte, error) {
     defer kol.AwayTicker.Stop()
 
