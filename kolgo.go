@@ -152,8 +152,6 @@ func (kol *relay)PlayerId() string {
 }
 
 func (kol *relay) LogIn(password string) error {
-    httpClient := kol.HttpClient
-
     loginParams := url.Values{}
     loginParams.Set("loggingin",    "Yup.")
     loginParams.Set("loginname",    kol.UserName)
@@ -167,15 +165,13 @@ func (kol *relay) LogIn(password string) error {
         return err
     }
     req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-    resp, err := httpClient.Do(req)
+    _, err = kol.DoHTTP(req)
 
     if err != nil {
         return err
     }
-    defer resp.Body.Close()
 
-    body, _ := ioutil.ReadAll(resp.Body)
-    for _, cookie := range httpClient.Jar.Cookies(req.URL) {
+    for _, cookie := range kol.HttpClient.Jar.Cookies(req.URL) {
         if strings.EqualFold(cookie.Name, "PHPSESSID") {
             kol.SessionId = cookie.Value
         }
@@ -185,10 +181,6 @@ func (kol *relay) LogIn(password string) error {
         return errors.New("Failed to aquire session id")
     }
 
-    responseErr := CheckResponseForErrors(resp, body)
-    if responseErr != nil {
-        return responseErr
-    }
 
     // Looks like we logged in successfuly.  Try to get the pwd hash
     // and player ID
@@ -368,42 +360,23 @@ func InvokeChatResponseHandlers(kol *relay, chatResponses *ChatResponse) {
 }
 
 func (kol *relay)ClanHall() ([]byte, error) {
-    httpClient := kol.HttpClient
     req, err := http.NewRequest("GET", clanHallUrl, nil)
     if err != nil {
         return nil, err
     }
 
-    resp, err := httpClient.Do(req)
-    if err != nil {
-        return nil, err
-    }
-    defer resp.Body.Close()
-
-    body, _ := ioutil.ReadAll(resp.Body)
-    return body, CheckResponseForErrors(resp, body)
+    return kol.DoHTTP(req)
 }
 
 func (kol *relay) LogOut() ([]byte, error) {
     defer kol.AwayTicker.Stop()
 
-    httpClient := kol.HttpClient
     req, err := http.NewRequest("GET", logoutUrl, nil)
     if err != nil {
         return nil, err
     }
-    req.Header.Set("Accept",          "application/json, text/javascript, */*; q=0.01")
-    req.Header.Set("Accept-Encoding", "gzip")
-    req.Header.Set("Refered",         "https://www.kingdomofloathing.com/mchat.php")
 
-    resp, err := httpClient.Do(req)
-    if err != nil {
-        return nil, err
-    }
-    defer resp.Body.Close()
-
-    body, _ := ioutil.ReadAll(resp.Body)
-    return body, CheckResponseForErrors(resp, body)
+    return kol.DoHTTP(req)
 }
 
 // {"msgs":[],"last":"1468191607","delay":3000}
@@ -430,15 +403,13 @@ type ChatResponse struct {
     Delay interface{}    `json:"delay"`
 }
 
-func (kol *relay) PollChat() ([]byte, error) {
+func (kol *relay)DoHTTP(req *http.Request) ([]byte, error) {
     httpClient := kol.HttpClient
-    req, err := http.NewRequest("GET", fmt.Sprintf("%s?lasttime=%s&j=1", newMessageUrl, kol.LastSeen), nil)
-    if err != nil {
-        return nil, err
-    }
-    req.Header.Set("Accept",          "application/json, text/javascript, */*; q=0.01")
+
     req.Header.Set("Accept-Encoding", "gzip")
-    req.Header.Set("Refered",         "https://www.kingdomofloathing.com/mchat.php")
+    req.Header.Set("X-Asym-Culprit",  "Maintained by Hugmeir(#3061055)")
+    req.Header.Set("X-Asym-Reason",   "Uniting /clan and the clan Discord")
+    req.Header.Set("X-Asym-Source",   "https://github.com/Hugmeir/kol-relay")
 
     resp, err := httpClient.Do(req)
     if err != nil {
@@ -458,6 +429,19 @@ func (kol *relay) PollChat() ([]byte, error) {
     }
 
     return body, CheckResponseForErrors(resp, body)
+}
+
+func (kol *relay) PollChat() ([]byte, error) {
+    // j=1 in the url is critical, required to get json!
+    req, err := http.NewRequest("GET", fmt.Sprintf("%s?lasttime=%s&j=1", newMessageUrl, kol.LastSeen), nil)
+    if err != nil {
+        return nil, err
+    }
+    // Critical that we request json here!
+    req.Header.Set("Accept",          "application/json, text/javascript, */*; q=0.01")
+    req.Header.Set("Refered",         "https://www.kingdomofloathing.com/mchat.php")
+
+    return kol.DoHTTP(req)
 }
 
 func (kol *relay)DecodeChat(jsonChat []byte) (*ChatResponse, error) {
@@ -504,8 +488,6 @@ func (kol *relay)ResetAwayTicker() {
 }
 
 func (kol *relay) SendKMail(recipient string, message string) ([]byte, error) {
-    httpClient := kol.HttpClient
-
     params := url.Values{}
     params.Set("action",    "send")
     params.Set("towho",     recipient)
@@ -518,22 +500,12 @@ func (kol *relay) SendKMail(recipient string, message string) ([]byte, error) {
         return nil, err
     }
     req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-    resp, err := httpClient.Do(req)
-
-    if err != nil {
-        return nil, err
-    }
-    defer resp.Body.Close()
-
-    body, _ := ioutil.ReadAll(resp.Body)
-
-    return body, CheckResponseForErrors(resp, body)
+    return kol.DoHTTP(req)
 }
 
 func (kol *relay) SubmitChat(destination string, message string) ([]byte, error) {
     kol.ResetAwayTicker()
 
-    httpClient  := kol.HttpClient
     msg         := destination + url.QueryEscape(" " + message)
     finalUrl   := fmt.Sprintf("%s?playerid=%s&pwd=%s&j=1&graf=%s", submitMessageUrl, kol.playerId, kol.PasswordHash, msg)
     req, err := http.NewRequest("POST", finalUrl, nil)
@@ -542,34 +514,15 @@ func (kol *relay) SubmitChat(destination string, message string) ([]byte, error)
     }
 
     //req.Header.Set("User-Agent",      "KoL-chat-to-Discord relay")
-    req.Header.Set("X-Asym-Culprit",  "Maintained by Hugmeir(#3061055)")
-    req.Header.Set("X-Asym-Reason",   "Uniting /clan and the clan Discord")
-    req.Header.Set("X-Asym-Source",   "https://github.com/Hugmeir/kol-relay")
-    req.Header.Set("Accept-Encoding", "gzip")
     req.Header.Set("Refered",         "https://www.kingdomofloathing.com/mchat.php")
 
-    resp, err := httpClient.Do(req)
-    if err != nil {
-        return nil, err
-    }
-    defer resp.Body.Close()
-
-    body, _ := ioutil.ReadAll(resp.Body)
-
-    if strings.Contains(resp.Header.Get("Content-Encoding"), "gzip") {
-        gr, err := gzip.NewReader(bytes.NewBuffer(body))
-        defer gr.Close()
-        body, err = ioutil.ReadAll(gr)
-        if err != nil {
-            return nil, err
-        }
-    }
+    body, err := kol.DoHTTP(req)
 
     if !strings.Contains(destination, "/who") {
         fmt.Fprintf(kol.Log, "%s %d [RESPONSE]: %s\n", time.Now().Format(time.RFC3339), os.Getpid(), string(body))
     }
 
-    return body, CheckResponseForErrors(resp, body)
+    return body, err
 }
 
 func CheckResponseForErrors(resp *http.Response, body []byte) error {
@@ -616,7 +569,6 @@ func CheckResponseForErrors(resp *http.Response, body []byte) error {
 /*GET inv_use.php?pwd=f4f8b4fa4058649c98df8676a77e288c&which=3&whichitem=2614&ajax=1&_=1538049902643 */
 /*GET multiuse.php?whichitem=9926&action=useitem&ajax=1&quantity=5&pwd=f4f8b4fa4058649c98df8676a77e288c&_=1538049978485 */
 func (kol *relay)InvUse(itemId string, quantity int) ([]byte, error) {
-    httpClient := kol.HttpClient
     var finalUrl string
     if quantity > 1 {
         finalUrl = fmt.Sprintf("%s?whichitem=%s&action=useitem&ajax=1&quantity=%d&pwd=%s", multiuseUrl, itemId, quantity, kol.PasswordHash)
@@ -629,32 +581,18 @@ func (kol *relay)InvUse(itemId string, quantity int) ([]byte, error) {
         return nil, err
     }
 
-    resp, err := httpClient.Do(req)
-    if err != nil {
-        return nil, err
-    }
-    defer resp.Body.Close()
-    body, _ := ioutil.ReadAll(resp.Body)
-    return body, CheckResponseForErrors(resp, body)
+    return kol.DoHTTP(req)
 }
 
 /*GET inv_spleen.php?whichitem=1455&ajax=1&pwd=9059a8720a363a243871f6d5594ba897&quantity=1&_=1537894093043*/
 func (kol *relay)InvSpleen(itemId string) ([]byte, error) {
-    httpClient := kol.HttpClient
     finalUrl   := fmt.Sprintf("%s?whichitem=%s&pwd=%s&ajax=1&quantity=1", invSpleenUrl, itemId, kol.PasswordHash)
     req, err   := http.NewRequest("GET", finalUrl, nil)
     if err != nil {
         return nil, err
     }
 
-    resp, err := httpClient.Do(req)
-    if err != nil {
-        return nil, err
-    }
-    defer resp.Body.Close()
-    body, _ := ioutil.ReadAll(resp.Body)
-    return body, CheckResponseForErrors(resp, body)
-
+    return kol.DoHTTP(req)
 }
 
 /*
@@ -663,8 +601,6 @@ pwd:6e7d95baa4a6a6d3cd1fb8ac6d1c82a6
 whicheffect:54
 */
 func (kol *relay)Uneffect(effectId string) ([]byte, error) {
-    httpClient := kol.HttpClient
-
     params := url.Values{}
     params.Set("using",       "Yup.")
     params.Set("pwd",         kol.PasswordHash)
@@ -677,29 +613,16 @@ func (kol *relay)Uneffect(effectId string) ([]byte, error) {
     }
     req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-    resp, err := httpClient.Do(req)
-    if err != nil {
-        return nil, err
-    }
-    defer resp.Body.Close()
-    body, _ := ioutil.ReadAll(resp.Body)
-    return body, CheckResponseForErrors(resp, body)
+    return kol.DoHTTP(req)
 }
 
 func (kol *relay) queryLChat() ([]byte, error) {
-    httpClient := kol.HttpClient
     req, err    := http.NewRequest("GET", lChatUrl, nil)
     if err != nil {
         return nil, err
     }
 
-    resp, err := httpClient.Do(req)
-    if err != nil {
-        return nil, err
-    }
-    defer resp.Body.Close()
-    body, _ := ioutil.ReadAll(resp.Body)
-    return body, CheckResponseForErrors(resp, body)
+    return kol.DoHTTP(req)
 }
 
 var passwordHashPatterns = []*regexp.Regexp {
