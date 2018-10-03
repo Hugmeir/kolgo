@@ -135,7 +135,7 @@ func NewKoL(userName string, f *os.File) KoLRelay {
         UserName:   userName,
         HttpClient: httpClient,
         LastSeen:   "0",
-        playerId:   "3152049", // TODO
+        playerId:   "",
         AwayTicker: time.NewTicker(3*time.Minute),
         PasswordHash: "",
 
@@ -674,10 +674,14 @@ func (kol *relay) queryLChat() ([]byte, error) {
     return body, CheckResponseForErrors(resp, body)
 }
 
-var passwordHashPatterns []*regexp.Regexp = []*regexp.Regexp {
+var passwordHashPatterns = []*regexp.Regexp {
     regexp.MustCompile(`name=["']?pwd["']? value=["']([^"']+)["']`),
     regexp.MustCompile(`pwd=([^&]+)`),
     regexp.MustCompile(`pwd = "([^"]+)"`),
+}
+var playerIDPatterns = []*regexp.Regexp {
+    regexp.MustCompile(`\bvar playerid\s*=\s*([0-9]+);`),
+    regexp.MustCompile(`\bplayerid=([0-9]+)&pwd=`),
 }
 func (kol *relay) ResolveCharacterData() error {
     bodyBytes, err := kol.queryLChat()
@@ -686,7 +690,16 @@ func (kol *relay) ResolveCharacterData() error {
     }
     body := string(bodyBytes)
 
+    kol.playerId     = ""
     kol.PasswordHash = ""
+    for _, pattern := range playerIDPatterns {
+        match := pattern.FindStringSubmatch(body)
+        if match != nil && len(match) > 0 {
+            kol.playerId = string(match[1])
+            break
+        }
+    }
+
     for _, pattern := range passwordHashPatterns {
         match := pattern.FindStringSubmatch(body)
         if match != nil && len(match) > 0 {
@@ -697,6 +710,10 @@ func (kol *relay) ResolveCharacterData() error {
 
     if kol.PasswordHash == "" {
         return errors.New("Cannot find password hash?!")
+    }
+
+    if kol.playerId == "" {
+        return errors.New("Cannot find player ID?!")
     }
 
     // TODO: get player ID here
