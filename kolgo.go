@@ -29,6 +29,7 @@ const (
     invSpleenUrl     = baseUrl + "inv_spleen.php"
     multiuseUrl      = baseUrl + "multiuse.php"
     clanHallUrl      = baseUrl + "clan_hall.php"
+    sendKMailUrl     = baseUrl + "sendmessage.php"
 )
 
 type MsgType int
@@ -54,7 +55,7 @@ type KoLRelay interface {
     AddHandler(int, handlerInterface)
     SendMessage(string, string)
     SendCommand(string, string)
-
+    SendKMail(string, string) ([]byte, error)
 
     // Not-so-public interface:
     SubmitChat(string, string) ([]byte, error)
@@ -500,6 +501,33 @@ func (kol *relay)ResetAwayTicker() {
         kol.AwayTicker.Stop()
     }
     kol.AwayTicker = time.NewTicker(3*time.Minute)
+}
+
+func (kol *relay) SendKMail(recipient string, message string) ([]byte, error) {
+    httpClient := kol.HttpClient
+
+    params := url.Values{}
+    params.Set("action",    "send")
+    params.Set("towho",     recipient)
+    params.Set("message",   message)
+    params.Set("pwd",       kol.PasswordHash)
+
+    kMailBody := strings.NewReader(params.Encode())
+    req, err := http.NewRequest("POST", sendKMailUrl + "?toid=", kMailBody)
+    if err != nil {
+        return nil, err
+    }
+    req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+    resp, err := httpClient.Do(req)
+
+    if err != nil {
+        return nil, err
+    }
+    defer resp.Body.Close()
+
+    body, _ := ioutil.ReadAll(resp.Body)
+
+    return body, CheckResponseForErrors(resp, body)
 }
 
 func (kol *relay) SubmitChat(destination string, message string) ([]byte, error) {
