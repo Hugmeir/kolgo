@@ -10,6 +10,7 @@ const (
     clanHallUrl         = baseUrl + "clan_hall.php"
     clanApplicationsUrl = baseUrl + "clan_applications.php"
     clanWhitelistUrl    = baseUrl + "clan_whitelist.php"
+    clanMembersUrl      = baseUrl + "clan_members.php"
 )
 
 func (kol *relay)ClanHall() ([]byte, error) {
@@ -30,11 +31,15 @@ func (kol *relay)ClanApplications() ([]byte, error) {
     return kol.DoHTTP(req)
 }
 
-func (kol *relay)ClanAcceptApplication(requestID string) ([]byte, error) {
+func (kol *relay)ClanProcessApplication(requestID string, accept bool) ([]byte, error) {
     params := url.Values{}
     params.Set("action",      "process")
     params.Set("pwd",         kol.PasswordHash)
-    params.Set(requestID,     "1")
+    if accept {
+        params.Set(requestID,     "1")
+    } else {
+        params.Set(requestID,     "2")
+    }
 
     paramsBody := strings.NewReader(params.Encode())
     req, err := http.NewRequest("POST", clanApplicationsUrl, paramsBody)
@@ -47,7 +52,7 @@ func (kol *relay)ClanAcceptApplication(requestID string) ([]byte, error) {
 }
 
 func (kol *relay)ClanMembers(page string) ([]byte, error) {
-    req, err := http.NewRequest("GET", clanWhitelistUrl + "?begin=" + page, nil)
+    req, err := http.NewRequest("GET", clanMembersUrl + "?begin=" + page, nil)
     if err != nil {
         return nil, err
     }
@@ -68,7 +73,7 @@ func (kol *relay)ClanModifyMember(page string, playerID string, level string, ti
     params.Set("title" + playerID, title)
 
     paramsBody := strings.NewReader(params.Encode())
-    req, err := http.NewRequest("POST", clanWhitelistUrl, paramsBody)
+    req, err := http.NewRequest("POST", clanMembersUrl, paramsBody)
     if err != nil {
         return nil, err
     }
