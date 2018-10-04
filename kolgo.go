@@ -28,7 +28,6 @@ const (
     invUseUrl        = baseUrl + "inv_use.php"
     invSpleenUrl     = baseUrl + "inv_spleen.php"
     multiuseUrl      = baseUrl + "multiuse.php"
-    clanHallUrl      = baseUrl + "clan_hall.php"
     sendKMailUrl     = baseUrl + "sendmessage.php"
 )
 
@@ -57,10 +56,19 @@ type KoLRelay interface {
     SendCommand(string, string)
     SendKMail(string, string) ([]byte, error)
 
+    // Clan actions
+    ClanHall()                 ([]byte, error)
+    ClanApplications()         ([]byte, error)
+    ClanWhitelist()            ([]byte, error)
+    ClanMembers(string)        ([]byte, error)
+
+    ClanAcceptApplication(string)                    ([]byte, error)
+    ClanModifyMember(string, string, string, string) ([]byte, error)
+    ClanAddWhitelist(string, string, string)         ([]byte, error)
+
     // Not-so-public interface:
     SubmitChat(string, string) ([]byte, error)
     PollChat()                 ([]byte, error)
-    ClanHall()                 ([]byte, error)
     InvUse(string, int)        ([]byte, error)
     InvSpleen(string)          ([]byte, error)
     Uneffect(string)           ([]byte, error)
@@ -357,15 +365,6 @@ func InvokeChatResponseHandlers(kol *relay, chatResponses *ChatResponse) {
             cb(kol, message)
         }
     }
-}
-
-func (kol *relay)ClanHall() ([]byte, error) {
-    req, err := http.NewRequest("GET", clanHallUrl, nil)
-    if err != nil {
-        return nil, err
-    }
-
-    return kol.DoHTTP(req)
 }
 
 func (kol *relay) LogOut() ([]byte, error) {
