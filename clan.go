@@ -52,7 +52,7 @@ func (kol *relay)ClanProcessApplication(requestID string, accept bool) ([]byte, 
 }
 
 func (kol *relay)ClanMembers(page string) ([]byte, error) {
-    req, err := http.NewRequest("GET", clanMembersUrl + "?begin=" + page, nil)
+    req, err := http.NewRequest("GET", clanMembersUrl + "?begin=" + page + "&num_per_page=100", nil)
     if err != nil {
         return nil, err
     }
