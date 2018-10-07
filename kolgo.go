@@ -46,11 +46,11 @@ type MessageToKoL struct {
 
 type handlerInterface func(KoLRelay, ChatMessage)
 type KoLRelay interface {
-    LogIn(string)              error
+    LogIn()                    error
     LogOut()                   ([]byte, error)
-    StartChatPoll(string)
-    StartMessagePoll(string)
-    HandleKoLException(error, string)  error
+    StartChatPoll()
+    StartMessagePoll()
+    HandleKoLException(error)  error
     AddHandler(int, handlerInterface)
     SendMessage(string, string)
     SendCommand(string, string)
@@ -108,6 +108,8 @@ func (kol *relay) SendMessage(d string, m string ) {
     kol.MessagesC <- msg
 }
 
+var passwords sync.Map
+
 type relay struct {
     UserName      string
     HttpClient    *http.Client
@@ -116,6 +118,8 @@ type relay struct {
     LastSeen      string
     playerId      string
 
+    reconnects    []time.Time
+
     Log           *os.File
     handlers      sync.Map
 
@@ -123,7 +127,7 @@ type relay struct {
     MessagesC     chan *MessageToKoL
 }
 
-func NewKoL(userName string, f *os.File) KoLRelay {
+func NewKoL(userName string, password string, f *os.File) KoLRelay {
     cookieJar, _ := cookiejar.New(nil)
     httpClient    := &http.Client{
         Jar:           cookieJar,
@@ -148,9 +152,12 @@ func NewKoL(userName string, f *os.File) KoLRelay {
         AwayTicker: time.NewTicker(3*time.Minute),
         PasswordHash: "",
 
+        reconnects: make([]time.Time, 0, 5),
         MessagesC: make(chan *MessageToKoL, 200),
         Log: f,
     }
+
+    passwords.Store(kol.UserName, password)
 
     return kol
 }
@@ -159,11 +166,15 @@ func (kol *relay)PlayerId() string {
     return kol.playerId
 }
 
-func (kol *relay) LogIn(password string) error {
+func (kol *relay) LogIn() error {
+    password, ok := passwords.Load(kol.UserName)
+    if !ok {
+        panic(errors.New(fmt.Sprintf("No password available for %s", kol.UserName)))
+    }
     loginParams := url.Values{}
     loginParams.Set("loggingin",    "Yup.")
     loginParams.Set("loginname",    kol.UserName)
-    loginParams.Set("password",     password)
+    loginParams.Set("password",     password.(string))
     loginParams.Set("secure",       "0")
     loginParams.Set("submitbutton", "Log In")
 
@@ -228,7 +239,7 @@ func MessageTypeFromMessage(message ChatMessage) int {
     }
 }
 
-func (kol *relay)StartMessagePoll(password string) {
+func (kol *relay)StartMessagePoll() {
     // Set up some super conservative rate limiting:
     throttle := time.Tick( 1 * time.Second )
     for { // just an infinite loop
@@ -253,7 +264,7 @@ func (kol *relay)StartMessagePoll(password string) {
                 }
 
                 // Got an error!
-                fatalError := kol.HandleKoLException(err, password)
+                fatalError := kol.HandleKoLException(err)
                 if fatalError != nil {
                     fmt.Println("Got an error submitting to kol?!")
                     panic(fatalError)
@@ -275,7 +286,7 @@ func (kol *relay)StartMessagePoll(password string) {
                 }
             case <-kol.AwayTicker.C:
                 _, err := kol.SubmitChat("/who", "clan")
-                fatalError := kol.HandleKoLException(err, password)
+                fatalError := kol.HandleKoLException(err)
                 if fatalError != nil {
                     panic(fatalError)
                 }
@@ -283,7 +294,7 @@ func (kol *relay)StartMessagePoll(password string) {
     }
 }
 
-func (kol *relay)StartChatPoll(password string) {
+func (kol *relay)StartChatPoll() {
 
     // Poll every 3 seconds:
     pollDelay := 3 * time.Second
@@ -299,7 +310,7 @@ func (kol *relay)StartChatPoll(password string) {
             }
             rawChatReponse, err := kol.PollChat()
             if err != nil {
-                fatalError      := kol.HandleKoLException(err, password)
+                fatalError      := kol.HandleKoLException(err)
                 if fatalError != nil {
                     // Probably rollover?
                     panic(fatalError)
@@ -670,7 +681,37 @@ func (kol *relay) ResolveCharacterData() error {
     return nil
 }
 
-func (kol *relay)HandleKoLException(err error, password string) error {
+func (kol *relay)ShouldReconnect() bool {
+    r := kol.reconnects
+    now := time.Now()
+
+    if len(r) < 2 {
+        // Don't even bother
+        kol.reconnects = append(r, now)
+        return true
+    }
+
+    // Filter out old reconnects
+    f := make([]time.Time, 0, 5)
+    for _, t := range r {
+        if now.Sub(t).Minutes() < 1 {
+            // Less than one minute, so keep it
+            f = append(f, t)
+        }
+    }
+
+    // Okay, so now f is all the recent reconnects; replace kol.reconnects
+    f = append(f, now)
+    kol.reconnects = f
+    if len(f) > 2 {
+        // We had at least three 3 reconnects in the last mintue.  That's way too many.
+        return false
+    }
+
+    return true
+}
+
+func (kol *relay)HandleKoLException(err error) error {
     if err == nil {
         return nil
     }
@@ -684,8 +725,11 @@ func (kol *relay)HandleKoLException(err error, password string) error {
         fmt.Println("Looks like we are in rollover.  Just shut down.")
         return err
     } else if kolError.ErrorType == Disconnect {
+        if !kol.ShouldReconnect() {
+            return errors.New(fmt.Sprintf("Reconnected too many times in too short a period of time!\nActual error: %s", err))
+        }
         fmt.Println("Looks like we were disconnected.  Try to reconnect!")
-        err = kol.LogIn(password)
+        err = kol.LogIn()
         if err != nil {
             return err
         }
