@@ -29,6 +29,7 @@ const (
     invSpleenUrl     = baseUrl + "inv_spleen.php"
     multiuseUrl      = baseUrl + "multiuse.php"
     sendKMailUrl     = baseUrl + "sendmessage.php"
+    showPlayerUrl    = baseUrl + "showplayer.php"
 )
 
 type MsgType int
@@ -65,6 +66,8 @@ type KoLRelay interface {
     ClanProcessApplication(string, bool)             ([]byte, error)
     ClanModifyMembers([]ClanMemberModification)      ([]byte, error)
     ClanAddWhitelist(string, string, string)         ([]byte, error)
+
+    ShowPlayer(string) ([]byte, error)
 
     // Not-so-public interface:
     SubmitChat(string, string) ([]byte, error)
@@ -386,6 +389,14 @@ func (kol *relay) LogOut() ([]byte, error) {
         return nil, err
     }
 
+    return kol.DoHTTP(req)
+}
+
+func (kol *relay) ShowPlayer(id string) ([]byte, error) {
+    req, err := http.NewRequest("GET", showPlayerUrl + "?who=" + id, nil)
+    if err != nil {
+        return nil, err
+    }
     return kol.DoHTTP(req)
 }
 
