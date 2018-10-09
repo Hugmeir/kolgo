@@ -2,6 +2,7 @@ package kolgo
 
 import (
     "strings"
+    "strconv"
     "net/http"
     "net/url"
 )
@@ -51,8 +52,8 @@ func (kol *relay)ClanProcessApplication(requestID string, accept bool) ([]byte, 
     return kol.DoHTTP(req)
 }
 
-func (kol *relay)ClanMembers(page string) ([]byte, error) {
-    req, err := http.NewRequest("GET", clanMembersUrl + "?begin=" + page + "&num_per_page=100", nil)
+func (kol *relay)ClanMembers(page int) ([]byte, error) {
+    req, err := http.NewRequest("GET", clanMembersUrl + "?begin=" + strconv.Itoa(page) + "&num_per_page=100", nil)
     if err != nil {
         return nil, err
     }
@@ -60,17 +61,28 @@ func (kol *relay)ClanMembers(page string) ([]byte, error) {
     return kol.DoHTTP(req)
 }
 
-func (kol *relay)ClanModifyMember(page string, playerID string, level string, title string) ([]byte, error) {
-    //_, month, day := time.Now().Date()
-    //title := fmt.Sprintf("%02/%02d awaiting Naming Day", int(month), day)
-
+type ClanMemberModification struct {
+    ID     string
+    RankID string
+    Title  string
+}
+func (kol *relay)ClanModifyMembers(clannies []ClanMemberModification) ([]byte, error) {
     params := url.Values{}
     params.Set("pwd",              kol.PasswordHash)
     params.Set("action",           "modify")
     params.Set("begin",            "page")
-    params.Set("pids[]",           playerID)
-    params.Set("level" + playerID, level)
-    params.Set("title" + playerID, title)
+
+    for _, m := range clannies {
+        id := m.ID
+        params.Set("pids[]",     id)
+        if m.RankID == "" || m.Title == "" {
+            continue
+        }
+        // Not passing the rank will break the request; not passing
+        // a title will give you a blank title, which is lousy.
+        params.Set("level" + id, m.RankID)
+        params.Set("title" + id, m.Title)
+    }
 
     paramsBody := strings.NewReader(params.Encode())
     req, err := http.NewRequest("POST", clanMembersUrl, paramsBody)
@@ -81,7 +93,6 @@ func (kol *relay)ClanModifyMember(page string, playerID string, level string, ti
     req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
     return kol.DoHTTP(req)
 }
-
 
 func (kol *relay)ClanWhitelist() ([]byte, error) {
     req, err := http.NewRequest("GET", clanWhitelistUrl, nil)

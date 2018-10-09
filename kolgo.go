@@ -60,10 +60,10 @@ type KoLRelay interface {
     ClanHall()                 ([]byte, error)
     ClanApplications()         ([]byte, error)
     ClanWhitelist()            ([]byte, error)
-    ClanMembers(string)        ([]byte, error)
+    ClanMembers(int)           ([]byte, error)
 
     ClanProcessApplication(string, bool)             ([]byte, error)
-    ClanModifyMember(string, string, string, string) ([]byte, error)
+    ClanModifyMembers([]ClanMemberModification)      ([]byte, error)
     ClanAddWhitelist(string, string, string)         ([]byte, error)
 
     // Not-so-public interface:
