@@ -8,14 +8,24 @@ import (
 )
 
 const (
-    clanHallUrl         = baseUrl + "clan_hall.php"
-    clanApplicationsUrl = baseUrl + "clan_applications.php"
-    clanWhitelistUrl    = baseUrl + "clan_whitelist.php"
-    clanMembersUrl      = baseUrl + "clan_members.php"
+    clanHallUrl         = baseUrl   + "clan_hall.php"
+    clanApplicationsUrl = baseUrl   + "clan_applications.php"
+    clanWhitelistUrl    = baseUrl   + "clan_whitelist.php"
+    clanMembersUrl      = baseUrl   + "clan_members.php"
+    clanDetailedRosterUrl = baseUrl + "clan_detailedroster.php"
 )
 
 func (kol *relay)ClanHall() ([]byte, error) {
     req, err := http.NewRequest("GET", clanHallUrl, nil)
+    if err != nil {
+        return nil, err
+    }
+
+    return kol.DoHTTP(req)
+}
+
+func (kol *relay)ClanDetailedRoster() ([]byte, error) {
+    req, err := http.NewRequest("GET", clanDetailedRosterUrl, nil)
     if err != nil {
         return nil, err
     }
