@@ -77,25 +77,41 @@ type ClanMemberModification struct {
     Title  string
 }
 func (kol *relay)ClanModifyMembers(clannies []ClanMemberModification) ([]byte, error) {
-    params := url.Values{}
-    params.Set("pwd",              kol.PasswordHash)
-    params.Set("action",           "modify")
-    params.Set("begin",            "page")
+    var buf strings.Builder
+    buf.WriteString(`pwd=`)
+    buf.WriteString(url.QueryEscape(kol.PasswordHash))
+
+    buf.WriteByte('&')
+    buf.WriteString(`action=modify`)
+
+    buf.WriteByte('&')
+    buf.WriteString(`begin=page`)
 
     for _, m := range clannies {
         id := m.ID
-        params.Add("pids[]",     id)
+        buf.WriteByte('&')
+        buf.WriteString(url.QueryEscape(`pids[]`))
+        buf.WriteByte('=')
+        buf.WriteString(url.QueryEscape(id))
+
         if m.Title == "" {
             // Not passing a title will give you a blank title, which is lousy.
             continue
         }
         if m.RankID != "" {
-            params.Set("level" + id, m.RankID)
+            buf.WriteByte('&')
+            buf.WriteString(url.QueryEscape(`level`+id))
+            buf.WriteByte('=')
+            buf.WriteString(url.QueryEscape(m.RankID))
         }
-        params.Set("title" + id, m.Title)
+        buf.WriteByte('&')
+        buf.WriteString(url.QueryEscape(`title`+id))
+        buf.WriteByte('=')
+        buf.WriteString(url.QueryEscape(m.Title))
     }
 
-    paramsBody := strings.NewReader(params.Encode())
+    e := buf.String()
+    paramsBody := strings.NewReader(e)
     req, err := http.NewRequest("POST", clanMembersUrl, paramsBody)
     if err != nil {
         return nil, err
