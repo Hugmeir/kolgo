@@ -84,13 +84,14 @@ func (kol *relay)ClanModifyMembers(clannies []ClanMemberModification) ([]byte, e
 
     for _, m := range clannies {
         id := m.ID
-        params.Set("pids[]",     id)
-        if m.RankID == "" || m.Title == "" {
+        params.Add("pids[]",     id)
+        if m.Title == "" {
+            // Not passing a title will give you a blank title, which is lousy.
             continue
         }
-        // Not passing the rank will break the request; not passing
-        // a title will give you a blank title, which is lousy.
-        params.Set("level" + id, m.RankID)
+        if m.RankID != "" {
+            params.Set("level" + id, m.RankID)
+        }
         params.Set("title" + id, m.Title)
     }
 
