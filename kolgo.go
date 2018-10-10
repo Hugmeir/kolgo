@@ -31,6 +31,7 @@ const (
     sendKMailUrl     = baseUrl + "sendmessage.php"
     showPlayerUrl    = baseUrl + "showplayer.php"
     apiUrl           = baseUrl + "api.php"
+    curseUrl         = baseUrl + "curse.php"
 )
 
 type MsgType int
@@ -79,6 +80,7 @@ type KoLRelay interface {
     Uneffect(string)           ([]byte, error)
     DecodeChat([]byte)         (*ChatResponse, error)
     SenderIdFromMessage(ChatMessage) string
+    Curse(string, Item)      ([]byte, error)
 
     ResetAwayTicker()
 
@@ -529,6 +531,22 @@ func (kol *relay)ResetAwayTicker() {
         kol.AwayTicker.Stop()
     }
     kol.AwayTicker = time.NewTicker(3*time.Minute)
+}
+
+func (kol *relay) Curse(recipient string, item Item) ([]byte, error) {
+    params := url.Values{}
+    params.Set("pwd",          kol.PasswordHash)
+    params.Set("action",       "use")
+    params.Set("targetplayer", recipient)
+    params.Set("whichitem",    item.ID)
+
+    body := strings.NewReader(params.Encode())
+    req, err := http.NewRequest("POST", curseUrl, body)
+    if err != nil {
+        return nil, err
+    }
+    req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+    return kol.DoHTTP(req)
 }
 
 func (kol *relay) SendKMail(recipient string, message string) ([]byte, error) {
