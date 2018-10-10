@@ -30,6 +30,7 @@ const (
     multiuseUrl      = baseUrl + "multiuse.php"
     sendKMailUrl     = baseUrl + "sendmessage.php"
     showPlayerUrl    = baseUrl + "showplayer.php"
+    apiUrl           = baseUrl + "api.php"
 )
 
 type MsgType int
@@ -56,6 +57,7 @@ type KoLRelay interface {
     SendMessage(string, string)
     SendCommand(string, string)
     SendKMail(string, string) ([]byte, error)
+    APIRequest(string, *map[string]string) ([]byte, error)
 
     // Clan actions
     ClanHall()                 ([]byte, error)
@@ -120,6 +122,7 @@ type relay struct {
     PasswordHash  string
     LastSeen      string
     playerId      string
+    APIReason     string
 
     reconnects    []time.Time
 
@@ -158,6 +161,8 @@ func NewKoL(userName string, password string, f *os.File) KoLRelay {
         reconnects: make([]time.Time, 0, 5),
         MessagesC: make(chan *MessageToKoL, 200),
         Log: f,
+        // TODO:
+        APIReason: "kol-relay for " + userName,
     }
 
     passwords.Store(kol.UserName, password)
@@ -399,6 +404,24 @@ func (kol *relay) ShowPlayer(id string) ([]byte, error) {
     }
     return kol.DoHTTP(req)
 }
+
+func (kol *relay) APIRequest(what string, args *map[string]string) ([]byte, error) {
+    params := url.Values{}
+    params.Set("pwd",       kol.PasswordHash)
+    if args != nil {
+        for k, v := range *args {
+            params.Add(k, v)
+        }
+    }
+    body := strings.NewReader(params.Encode())
+
+    req, err := http.NewRequest("POST", apiUrl + "?what=" + what + "&for=" + kol.APIReason, body)
+    if err != nil {
+        return nil, err
+    }
+    return kol.DoHTTP(req)
+}
+
 
 // {"msgs":[],"last":"1468191607","delay":3000}
 // {"msgs":[{"msg":"Howdy.","type":"public","mid":"1468191682","who":{"name":"Soloflex","id":"2886007","color":"black"},"format":"0","channel":"clan","channelcolor":"green","time":"1537040363"}],"last":"1468191682","delay":3000}
