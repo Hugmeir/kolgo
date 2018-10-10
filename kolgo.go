@@ -75,12 +75,12 @@ type KoLRelay interface {
     // Not-so-public interface:
     SubmitChat(string, string) ([]byte, error)
     PollChat()                 ([]byte, error)
-    InvUse(Item, int)        ([]byte, error)
-    InvSpleen(Item)          ([]byte, error)
+    InvUse(*Item, int)         ([]byte, error)
+    InvSpleen(*Item)           ([]byte, error)
     Uneffect(string)           ([]byte, error)
     DecodeChat([]byte)         (*ChatResponse, error)
     SenderIdFromMessage(ChatMessage) string
-    Curse(string, Item)      ([]byte, error)
+    Curse(string, *Item)       ([]byte, error)
 
     ResetAwayTicker()
 
@@ -533,7 +533,7 @@ func (kol *relay)ResetAwayTicker() {
     kol.AwayTicker = time.NewTicker(3*time.Minute)
 }
 
-func (kol *relay) Curse(recipient string, item Item) ([]byte, error) {
+func (kol *relay) Curse(recipient string, item *Item) ([]byte, error) {
     params := url.Values{}
     params.Set("pwd",          kol.PasswordHash)
     params.Set("action",       "use")
@@ -630,7 +630,7 @@ func CheckResponseForErrors(resp *http.Response, body []byte) error {
 
 /*GET inv_use.php?pwd=f4f8b4fa4058649c98df8676a77e288c&which=3&whichitem=2614&ajax=1&_=1538049902643 */
 /*GET multiuse.php?whichitem=9926&action=useitem&ajax=1&quantity=5&pwd=f4f8b4fa4058649c98df8676a77e288c&_=1538049978485 */
-func (kol *relay)InvUse(item Item, quantity int) ([]byte, error) {
+func (kol *relay)InvUse(item *Item, quantity int) ([]byte, error) {
     var finalUrl string
     if quantity > 1 {
         finalUrl = fmt.Sprintf("%s?whichitem=%s&action=useitem&ajax=1&quantity=%d&pwd=%s", multiuseUrl, item.ID, quantity, kol.PasswordHash)
@@ -647,7 +647,7 @@ func (kol *relay)InvUse(item Item, quantity int) ([]byte, error) {
 }
 
 /*GET inv_spleen.php?whichitem=1455&ajax=1&pwd=9059a8720a363a243871f6d5594ba897&quantity=1&_=1537894093043*/
-func (kol *relay)InvSpleen(item Item) ([]byte, error) {
+func (kol *relay)InvSpleen(item *Item) ([]byte, error) {
     finalUrl   := fmt.Sprintf("%s?whichitem=%s&pwd=%s&ajax=1&quantity=1", invSpleenUrl, item.ID, kol.PasswordHash)
     req, err   := http.NewRequest("GET", finalUrl, nil)
     if err != nil {
