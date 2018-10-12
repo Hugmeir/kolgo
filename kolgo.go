@@ -409,15 +409,18 @@ func (kol *relay) ShowPlayer(id string) ([]byte, error) {
 
 func (kol *relay) APIRequest(what string, args *map[string]string) ([]byte, error) {
     params := url.Values{}
+    params.Set("what",      what)
+    params.Set("for",       kol.APIReason)
     params.Set("pwd",       kol.PasswordHash)
     if args != nil {
         for k, v := range *args {
             params.Add(k, v)
         }
     }
-    body := strings.NewReader(params.Encode())
+    urlParams := params.Encode()
+    body := strings.NewReader(urlParams)
 
-    req, err := http.NewRequest("POST", apiUrl + "?what=" + what + "&for=" + kol.APIReason, body)
+    req, err := http.NewRequest("POST", apiUrl + "?" + urlParams, body)
     if err != nil {
         return nil, err
     }

@@ -84,19 +84,28 @@ func (node *ItemTrie)GetNearby(k string, want int) []*Item {
 }
 
 var itemTrie *ItemTrie
-var itemNameToID map[string]*Item
+var itemDescIDToItem map[string]*Item
 func init() {
-    itemNameToID = make(map[string]*Item, len(AllItems))
     itemTrie     = MakeItemTrie()
+    itemDescIDToItem = make(map[string]*Item, len(AllItems))
 
     for _, item := range AllItems {
         if item == nil {
             continue
         }
-        itemNameToID[item.Name] = item
         itemTrie.Add(item.Name, item)
         itemTrie.Add(strings.ToLower(item.Name), item)
+        if item.Plural != "" {
+            itemTrie.Add(strings.ToLower(item.Plural), item)
+        }
+
+        itemDescIDToItem[item.DescID] = item
     }
+}
+
+func DescIDToItem(descID string) *Item {
+    i, _ := itemDescIDToItem[descID]
+    return i
 }
 
 func ToItem(key interface{}) (*Item, error) {
