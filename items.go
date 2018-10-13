@@ -8211,7 +8211,6 @@ var AllItems = []*Item{
     &Item{"8192", "Citrus Crush wine cooler", "755253317", "winecooler.gif", "drink", "t,d", 25, ""},
     &Item{"8193", "plain bagel", "281035207", "jarl_bagel.gif", "food", "t,d", 7, "plain bagels"},
     &Item{"8194", "glob of cream cheese", "880907559", "blankoutglob.gif", "food", "t,d", 7, "globs of cream cheese"},
-    nil,
     &Item{"8195", "loaf of soda bread", "995601519", "sodabread.gif", "food", "t,d", 30, ""},
     &Item{"8196", "acceptable bagel", "243520859", "ccbagel.gif", "food", "t,d", 35, ""},
     &Item{"8197", "standard-issue cupcake", "133905889", "ccake1.gif", "food", "t,d", 20, ""},

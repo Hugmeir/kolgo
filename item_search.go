@@ -89,9 +89,12 @@ func init() {
     itemTrie     = MakeItemTrie()
     itemDescIDToItem = make(map[string]*Item, len(AllItems))
 
-    for _, item := range AllItems {
+    for idx, item := range AllItems {
         if item == nil {
             continue
+        }
+        if item.ID != fmt.Sprintf("%d", idx) {
+            panic(errors.New("Mafia's data files have a bug, offset is wrong for item " + item.ID))
         }
         itemTrie.Add(item.Name, item)
         itemTrie.Add(strings.ToLower(item.Name), item)
