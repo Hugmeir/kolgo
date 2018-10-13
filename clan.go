@@ -13,6 +13,7 @@ const (
     clanWhitelistUrl    = baseUrl   + "clan_whitelist.php"
     clanMembersUrl      = baseUrl   + "clan_members.php"
     clanDetailedRosterUrl = baseUrl + "clan_detailedroster.php"
+    clanStashUrl        = baseUrl   + "clan_stash.php"
 )
 
 func (kol *relay)ClanHall() ([]byte, error) {
@@ -149,4 +150,29 @@ func (kol *relay)ClanAddWhitelist(playerName string, level string, title string)
     return kol.DoHTTP(req)
 }
 
+func (kol *relay) ClanStash() ([]byte, error) {
+    req, err := http.NewRequest("GET", clanStashUrl, nil)
+    if err != nil {
+        return nil, err
+    }
+
+    return kol.DoHTTP(req)
+}
+
+func (kol *relay) ClanTakeFromStash(item *Item, amount int) ([]byte, error) {
+    params := url.Values{}
+    params.Set("pwd",         kol.PasswordHash)
+    params.Set("action",      "takegoodies")
+    params.Set("quantity",    strconv.Itoa(amount))
+    params.Set("whichitem",   item.ID)
+
+    paramsBody := strings.NewReader(params.Encode())
+    req, err := http.NewRequest("POST", clanStashUrl, paramsBody)
+    if err != nil {
+        return nil, err
+    }
+
+    req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+    return kol.DoHTTP(req)
+}
 

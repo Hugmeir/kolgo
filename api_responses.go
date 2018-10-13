@@ -244,3 +244,33 @@ func DecodeAPIKMails(b []byte) ([]*KMail, error) {
 
     return kmails, nil
 }
+
+/*
+<input type=submit class=button value='Add Items to Clan Stash'></form><p><b>Take an item
+ from the Goodies Hoard:</b><br><form name=takegoodies action=clan_stash.php method=post><input type=hidden name=pwd value='d8a051ec44dccb6daee688d31fa366ef'><input type=hidden name
+=action value="takegoodies"><img src='https://s3.amazonaws.com/images.kingdomofloathing.com/itemimages/magnify.gif' style='vertical-align: middle; cursor: pointer' onClick='describe
+(document.takegoodies.whichitem);' title='View Item Description' alt='View Item Description'> <input class=text size=2 type=text name=quantity value=1> <select name=whichitem><optio
+n value=4508 descid=830929931>&quot;DRINK ME&quot; potion (755) (-0)</option><option value=7772 descid=950823191>&quot;meat&quot; stick (80) (-55)</option><option value=3137 descid=
+*/
+var inStashMatcher   = regexp.MustCompile(`(?i)Take an item from the Goodies Hoard:.+`)
+var stashItemMatcher = regexp.MustCompile(`(?i)<option[^<]+value=['"]?(\d+)`)
+func DecodeClanStash(b []byte) []*Item {
+    m := inStashMatcher.FindStringSubmatch(string(b))
+    if len(m) < 1 {
+        return nil
+    }
+
+    matches := stashItemMatcher.FindAllStringSubmatch(m[0], -1)
+    items   := make([]*Item, 0, len(matches))
+    for _, m := range matches {
+        itemID, _ := strconv.Atoi(m[1])
+        item,   _ := ToItem(itemID)
+        if item == nil {
+            fmt.Println("Could not figure out what this item is: ", m[1])
+            continue
+        }
+        items = append(items, item)
+    }
+
+    return items
+}
