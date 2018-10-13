@@ -29,6 +29,7 @@ const (
     invSpleenUrl     = baseUrl + "inv_spleen.php"
     multiuseUrl      = baseUrl + "multiuse.php"
     sendKMailUrl     = baseUrl + "sendmessage.php"
+    sendGiftUrl      = baseUrl + "town_sendgift.php"
     showPlayerUrl    = baseUrl + "showplayer.php"
     apiUrl           = baseUrl + "api.php"
     curseUrl         = baseUrl + "curse.php"
@@ -57,7 +58,8 @@ type KoLRelay interface {
     AddHandler(int, handlerInterface)
     SendMessage(string, string)
     SendCommand(string, string)
-    SendKMail(string, string) ([]byte, error)
+    SendKMail(string, string, int, *map[*Item]int) ([]byte, error)
+    SendGift(string, string, string, int, *map[*Item]int) ([]byte, error)
     APIRequest(string, *map[string]string) ([]byte, error)
 
     // Clan actions
@@ -552,15 +554,115 @@ func (kol *relay) Curse(recipient string, item *Item) ([]byte, error) {
     return kol.DoHTTP(req)
 }
 
-func (kol *relay) SendKMail(recipient string, message string) ([]byte, error) {
+/*
+Request URL:http://127.0.0.1:60080/sendmessage.php?toid=2685812
+Request Method:POST
+Status Code:200 OK
+Remote Address:127.0.0.1:60080
+Response Headers
+view source
+Cache-Control:no-cache, must-revalidate
+Content-Length:37217
+Content-Type:text/html; charset=UTF-8
+Date:Sat, 13 Oct 2018 14:28:41 GMT
+Expires:Thu, 19 Nov 1981 08:52:00 GMT
+Pragma:no-cache
+Server:nginx/1.8.1
+Set-Cookie:AWSALB=a1uofXnwjt6dQveifVrRaV/lBlIxuDvvIdeiiPchc9t9I5BYicH+Z4xc59BTDEAWvxRIR5qwe33/m1terJibTiRfGt0nBlZyhyMXnXfw2hfC+cl4nr3DhIloxO63; Expires=Sat, 20 Oct 2018 14:28:41 GMT; Path=/
+Vary:Accept-Encoding
+X-Powered-By:PHP/5.3.29
+Request Headers
+view source
+Accept-Encoding:gzip, deflate, br
+Accept-Language:en-US,en;q=0.8,es;q=0.6
+Cache-Control:max-age=0
+Connection:keep-alive
+Content-Length:248
+Content-Type:application/x-www-form-urlencoded
+Cookie:charpwd=200; chatpwd=252; AWSALB=/6sa8hPj46GjzlCQqJJZpaKUuzWBP/05fiCW+ji7f445QflQRnBPSzHpSc4pFhyaYCLB9S6PUVes9bcIWPhFoJfhoXctBGOHyP4CwD51sgHL7URAVk7JCHH3sFjL
+DNT:1
+Host:127.0.0.1:60080
+Origin:http://127.0.0.1:60080
+Referer:http://127.0.0.1:60080/sendmessage.php?toid=2685812&replyid=136372106
+Upgrade-Insecure-Requests:1
+User-Agent:Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.71 Safari/537.36
+Query String Parameters
+view source
+view URL encoded
+toid:2685812
+Form Data
+view source
+view URL encoded
+action:send
+replyid:136372106
+pwd:e748e7bcee1ea8598d0babe8823d40ab
+towho:2685812
+contact:0
+message:Do ignore this message, need to send out one kmail with an item to figure out how make the relay send 'em...
+howmany1:1
+whichitem1:131
+sendmeat:1
+*/
+
+func (kol *relay) SendKMail(recipient string, message string, meat int, items *map[*Item]int) ([]byte, error) {
     params := url.Values{}
     params.Set("action",    "send")
     params.Set("towho",     recipient)
     params.Set("message",   message)
     params.Set("pwd",       kol.PasswordHash)
+    if meat > 0 {
+        params.Set("sendmeat", strconv.Itoa(meat))
+    }
+
+    if items != nil {
+        idx := 0
+        for i, m := range *items {
+            idx++
+            params.Set(fmt.Sprintf("whichitem%d", idx), i.ID)
+            params.Set(fmt.Sprintf("howmany%d", idx), strconv.Itoa(m))
+        }
+    }
 
     kMailBody := strings.NewReader(params.Encode())
     req, err := http.NewRequest("POST", sendKMailUrl + "?toid=", kMailBody)
+    if err != nil {
+        return nil, err
+    }
+    req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+    return kol.DoHTTP(req)
+}
+
+func (kol *relay) SendGift(recipient string, message string, innerMessage string, meat int, items *map[*Item]int) ([]byte, error) {
+
+    params := url.Values{}
+    params.Set("action",     "Yep.")
+    params.Set("towho",      recipient)
+    // Must replace all newlines with \r\n, otherwise the game will translate them as "n".  Yep, plain 'n'
+    params.Set("note",       strings.Replace(message, "\n", "\r\n", -1))
+    params.Set("insidenote", strings.Replace(innerMessage, "\n", "\r\n", -1))
+    params.Set("fromwhere",  "0") // 0 => inventory
+    params.Set("pwd",        kol.PasswordHash)
+    if meat > 0 {
+        params.Set("sendmeat", strconv.Itoa(meat))
+    }
+
+    if items != nil {
+        idx := 0
+        for i, m := range *items {
+            idx++
+            params.Set(fmt.Sprintf("whichitem%d", idx), i.ID)
+            params.Set(fmt.Sprintf("howmany%d", idx), strconv.Itoa(m))
+        }
+        if idx > 11 {
+            return nil, errors.New(fmt.Sprintf("You can only send up to 11 items at once, you asked to send %d", idx))
+        }
+        params.Set("whichpackage", strconv.Itoa(idx))
+    } else {
+        params.Set("whichpackage", "1")
+    }
+
+    kMailBody := strings.NewReader(params.Encode())
+    req, err := http.NewRequest("POST", sendGiftUrl, kMailBody)
     if err != nil {
         return nil, err
     }
