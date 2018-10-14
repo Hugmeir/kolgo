@@ -54,7 +54,6 @@ type KoLRelay interface {
     LogOut()                   ([]byte, error)
     StartChatPoll()
     StartMessagePoll()
-    HandleKoLException(error)  error
     AddHandler(int, handlerInterface)
     SendMessage(string, string)
     SendCommand(string, string)
@@ -300,9 +299,8 @@ func (kol *relay)StartMessagePoll() {
                 }
             case <-kol.AwayTicker.C:
                 _, err := kol.SubmitChat("/who", "clan")
-                fatalError := kol.HandleKoLException(err)
-                if fatalError != nil {
-                    panic(fatalError)
+                if err != nil {
+                    panic(err)
                 }
         }
     }
@@ -324,13 +322,7 @@ func (kol *relay)StartChatPoll() {
             }
             rawChatReponse, err := kol.PollChat()
             if err != nil {
-                fatalError      := kol.HandleKoLException(err)
-                if fatalError != nil {
-                    // Probably rollover?
-                    panic(fatalError)
-                }
-                fmt.Println("Polling KoL had some error we are now ignoring: ", err)
-                continue
+                panic(err)
             }
 
             // Dumb heuristics!  If it contains msgs:[], it's an empty response,
@@ -456,7 +448,7 @@ type ChatResponse struct {
     Delay interface{}    `json:"delay"`
 }
 
-func (kol *relay)DoHTTP(req *http.Request) ([]byte, error) {
+func (kol *relay)DoHTTPInternal(req *http.Request) ([]byte, error) {
     httpClient := kol.HttpClient
 
     req.Header.Set("Accept-Encoding", "gzip")
@@ -482,6 +474,63 @@ func (kol *relay)DoHTTP(req *http.Request) ([]byte, error) {
     }
 
     return body, CheckResponseForErrors(resp, body)
+}
+
+func (kol *relay)DoHTTP(req *http.Request) ([]byte, error) {
+    body, err := kol.DoHTTPInternal(req)
+    if err == nil {
+        return body, err
+    }
+
+    // Got an error -- can we retry?
+    kolError, ok := err.(*KoLError)
+    if !ok {
+        return body, err
+    }
+
+    // Did we get disconnected?
+    if kolError.ErrorType != Disconnect {
+        return body, err
+    }
+
+    // Are we a logout?
+    if strings.Contains(req.URL.Path, `logout.php`) {
+        // Then a disconnect is, well, fine >.>
+        return body, nil
+    }
+
+    // Attempt to reconnect:
+    oldHash  := kol.PasswordHash
+    fatalErr := kol.HandleKoLException(err)
+    if fatalErr != nil {
+        return body, fatalErr
+    }
+
+    // We reconnected -- now try the request again, return regardless
+    // of what the outcome is:
+    // Shitty part: we need to replace the old pwd hash with the current one.
+    // Must do this in the url & in the body
+    newHash    := kol.PasswordHash
+
+    newUrl := strings.Replace(req.URL.String(), `=` + oldHash, `=` + newHash, -1)
+    var newParams *bytes.Reader
+    if req.Body != nil {
+        oldBody, _ := ioutil.ReadAll(req.Body)
+        newBody    := bytes.Replace(oldBody, []byte(`=` + oldHash), []byte(`=` + newHash), -1)
+        newParams   = bytes.NewReader(newBody)
+    }
+
+    newRequest, err := http.NewRequest(req.Method, newUrl, newParams)
+    if err != nil {
+        fmt.Println("Failed to retry request:", err)
+        return body, err
+    }
+    for k, values := range req.Header {
+        for _, v := range values {
+            newRequest.Header.Add(k, v)
+        }
+    }
+    return kol.DoHTTPInternal(newRequest)
 }
 
 func (kol *relay) PollChat() ([]byte, error) {
