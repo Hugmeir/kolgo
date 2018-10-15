@@ -14,6 +14,9 @@ const (
     clanMembersUrl      = baseUrl   + "clan_members.php"
     clanDetailedRosterUrl = baseUrl + "clan_detailedroster.php"
     clanStashUrl        = baseUrl   + "clan_stash.php"
+
+    // VIP
+    clanVIPUrl          = baseUrl   + "clan_viplounge.php"
 )
 
 func (kol *relay)ClanHall() ([]byte, error) {
@@ -168,6 +171,39 @@ func (kol *relay) ClanTakeFromStash(item *Item, amount int) ([]byte, error) {
 
     paramsBody := strings.NewReader(params.Encode())
     req, err := http.NewRequest("POST", clanStashUrl, paramsBody)
+    if err != nil {
+        return nil, err
+    }
+
+    req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+    return kol.DoHTTP(req)
+}
+
+func (kol *relay)ClanVIPFortune() ([]byte, error) {
+    req, err := http.NewRequest("GET", clanVIPUrl + "?preaction=lovetester", nil)
+    if err != nil {
+        return nil, err
+    }
+
+    return kol.DoHTTP(req)
+}
+
+// Thanks Parry:
+/*  string foo = "clan_viplounge.php?preaction=dotestlove&testlove=" + id + "&pwd&option=1&q1=fries&q2=robin&q3=thin";*/
+func (kol *relay)ClanResponseLoveTest(recipientID, answer1, answer2, answer3 string) ([]byte, error) {
+    params := url.Values{}
+    params.Set("pwd",         kol.PasswordHash)
+    params.Set("preaction",   "dotestlove")
+    params.Set("testlove",    recipientID)
+
+    params.Set("option",   "1") // Clannie
+
+    params.Set("q1",   answer1)
+    params.Set("q2",   answer2)
+    params.Set("q3",   answer3)
+
+    paramsBody := strings.NewReader(params.Encode())
+    req, err := http.NewRequest("POST", clanVIPUrl, paramsBody)
     if err != nil {
         return nil, err
     }

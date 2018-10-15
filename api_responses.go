@@ -2,6 +2,7 @@ package kolgo
 
 import (
     "fmt"
+    "bytes"
     "strings"
     "strconv"
     "regexp"
@@ -273,4 +274,45 @@ func DecodeClanStash(b []byte) []*Item {
     }
 
     return items
+}
+
+// Love consults
+/*
+You have active relationship consultations open with: <br /><a href="/clan_v
+iplounge.php?preaction=testlove&testlove=918470">Ikkie</a><br /><a href="/clan_viplounge.php?preaction=testlove&testlove=2416558">Nescire</a><br /><a href="/clan_viplounge.php?preac
+tion=testlove&testlove=2707364">StiffKnees</a><br /><a href="/clan_viplounge.php?preaction=testlove&testlove=3061055">Hugmeir</a><br /></font><p>
+*/
+var loveConsultMatcher = regexp.MustCompile(`(?i)<a[^>]+href=['"]/?clan_viplounge.php([^"']+)["'][^>]*>([^<]+)</a>`)
+var testLoveMatcher    = regexp.MustCompile(`(?i)testlove=([0-9]+)`)
+func DecodeOutstandingZataraConsults(b []byte) []*Player {
+    if !bytes.Contains(b, []byte(`You have active relationship consultations open with`)) {
+        return nil
+    }
+
+    matches := loveConsultMatcher.FindAllStringSubmatch(string(b), -1)
+
+    if len(matches) < 1 {
+        return nil
+    }
+
+    players := make([]*Player, 0, len(matches))
+    for _, m := range matches {
+        url  := m[1]
+        name := m[2]
+        if !strings.Contains(url, `preaction=testlove`) {
+            continue
+        }
+
+        innerm := testLoveMatcher.FindStringSubmatch(url)
+        if len(innerm) == 0 {
+            continue
+        }
+        id := innerm[0]
+        players = append(players, &Player{
+            ID:   id,
+            Name: name,
+        })
+    }
+
+    return players
 }
