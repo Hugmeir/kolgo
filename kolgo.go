@@ -477,6 +477,11 @@ func (kol *relay)DoHTTPInternal(req *http.Request) ([]byte, error) {
 }
 
 func (kol *relay)DoHTTP(req *http.Request) ([]byte, error) {
+    var oldBody []byte // keep it around in case we need to retry
+    if req.GetBody != nil {
+        r, _ := req.GetBody()
+        oldBody, _ = ioutil.ReadAll(r)
+    }
     body, err := kol.DoHTTPInternal(req)
     if err == nil {
         return body, err
@@ -515,7 +520,6 @@ func (kol *relay)DoHTTP(req *http.Request) ([]byte, error) {
     newUrl := strings.Replace(req.URL.String(), `=` + oldHash, `=` + newHash, -1)
     var newParams *bytes.Reader
     if req.Body != nil {
-        oldBody, _ := ioutil.ReadAll(req.Body)
         newBody    := bytes.Replace(oldBody, []byte(`=` + oldHash), []byte(`=` + newHash), -1)
         newParams   = bytes.NewReader(newBody)
     }
