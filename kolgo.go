@@ -524,7 +524,9 @@ func (kol *relay)DoHTTP(req *http.Request) ([]byte, error) {
     var newParams *bytes.Reader
     if req.Body != nil {
         newBody    := bytes.Replace(oldBody, []byte(`=` + oldHash), []byte(`=` + newHash), -1)
-        newParams   = bytes.NewReader(newBody)
+        if len(newBody) > 0 {
+            newParams   = bytes.NewReader(newBody)
+        }
     }
 
     newRequest, err := http.NewRequest(req.Method, newUrl, newParams)
