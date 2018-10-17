@@ -134,6 +134,29 @@ func (kol *relay)ClanWhitelist() ([]byte, error) {
     return kol.DoHTTP(req)
 }
 
+/*
+action:updatewl
+pwd:6b763b3d48ed3bc0b6d368c03548b08e
+who:2685812
+remove:Remove
+*/
+func (kol *relay)ClanRemoveWhitelist(playerID string) ([]byte, error) {
+    params := url.Values{}
+    params.Set("pwd",         kol.PasswordHash)
+    params.Set("action",      "updatewl")
+    params.Set("remove",      "Remove")
+    params.Set("who",         playerID)
+
+    paramsBody := strings.NewReader(params.Encode())
+    req, err := http.NewRequest("POST", clanWhitelistUrl, paramsBody)
+    if err != nil {
+        return nil, err
+    }
+
+    req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+    return kol.DoHTTP(req)
+}
+
 func (kol *relay)ClanAddWhitelist(playerName string, level string, title string) ([]byte, error) {
     params := url.Values{}
     params.Set("pwd",         kol.PasswordHash)
