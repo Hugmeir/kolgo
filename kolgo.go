@@ -485,8 +485,10 @@ func SwapInNewPasswordHash(req *http.Request, oldBody []byte, oldHash, newHash s
     newUrl := strings.Replace(req.URL.String(), oldHash, newHash, -1)
     var newParams *bytes.Reader
     if len(oldBody) > 0 {
-        newBody    := bytes.Replace(oldBody, []byte(`=` + oldHash), []byte(`=` + newHash), -1)
+        newBody    := bytes.Replace(oldBody, []byte(oldHash), []byte(newHash), -1)
         newParams   = bytes.NewReader(newBody)
+    } else {
+        newParams = nil
     }
 
     newRequest, err := http.NewRequest(req.Method, newUrl, newParams)
@@ -518,8 +520,10 @@ func (kol *relay)DoHTTP(req *http.Request) ([]byte, error) {
 
     var oldBody []byte // keep it around in case we need to retry
     if req.GetBody != nil {
-        r, _ := req.GetBody()
-        oldBody, _ = ioutil.ReadAll(r)
+        r, _           := req.GetBody()
+        tempOldBody, _ := ioutil.ReadAll(r)
+        oldBody = make([]byte, len(tempOldBody))
+        copy(oldBody, tempOldBody)
     }
 
     if oldHash != newHash {
