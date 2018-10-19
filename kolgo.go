@@ -483,18 +483,20 @@ func (kol *relay)DoHTTPInternal(req *http.Request) ([]byte, error) {
 
 func SwapInNewPasswordHash(req *http.Request, oldBody []byte, oldHash, newHash string) *http.Request {
     newUrl := strings.Replace(req.URL.String(), oldHash, newHash, -1)
-    var newParams *bytes.Reader
+    var newRequest *http.Request
+    var err error
     if len(oldBody) > 0 {
         newBody    := bytes.Replace(oldBody, []byte(oldHash), []byte(newHash), -1)
-        newParams   = bytes.NewReader(newBody)
+        newParams  := bytes.NewReader(newBody)
+        newRequest, err = http.NewRequest(req.Method, newUrl, newParams)
     } else {
-        newParams = nil
+        newRequest, err = http.NewRequest(req.Method, newUrl, nil)
     }
 
-    newRequest, err := http.NewRequest(req.Method, newUrl, newParams)
     if err != nil {
         return nil
     }
+
     for k, values := range req.Header {
         for _, v := range values {
             newRequest.Header.Add(k, v)
