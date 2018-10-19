@@ -139,6 +139,7 @@ type relay struct {
 
     AwayTicker    *time.Ticker
     MessagesC     chan *MessageToKoL
+    RequestMutex  sync.Mutex
 }
 
 func NewKoL(userName string, password string, f *os.File) KoLRelay {
@@ -200,8 +201,9 @@ func (kol *relay) LogIn() error {
         return err
     }
     req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-    _, err = kol.DoHTTP(req)
-
+    // Note: MUST use internal since we can be called from within DoHTTP()
+    // if we need to reconnect
+    _, err = kol.DoHTTPInternal(req)
     if err != nil {
         return err
     }
@@ -479,12 +481,54 @@ func (kol *relay)DoHTTPInternal(req *http.Request) ([]byte, error) {
     return body, CheckResponseForErrors(resp, body)
 }
 
+func SwapInNewPasswordHash(req *http.Request, oldBody []byte, oldHash, newHash string) *http.Request {
+    newUrl := strings.Replace(req.URL.String(), oldHash, newHash, -1)
+    var newParams *bytes.Reader
+    if len(oldBody) > 0 {
+        newBody    := bytes.Replace(oldBody, []byte(`=` + oldHash), []byte(`=` + newHash), -1)
+        newParams   = bytes.NewReader(newBody)
+    }
+
+    newRequest, err := http.NewRequest(req.Method, newUrl, newParams)
+    if err != nil {
+        return nil
+    }
+    for k, values := range req.Header {
+        for _, v := range values {
+            newRequest.Header.Add(k, v)
+        }
+    }
+    return newRequest
+}
+
 func (kol *relay)DoHTTP(req *http.Request) ([]byte, error) {
+    // TODO:
+    // Race condition...  Need to rewrite all of DoHTTP to take in the params to create a request,
+    // with placeholders for the pwd hash
+    oldHash  := kol.PasswordHash
+
+    if strings.EqualFold(req.Method, `POST`) {
+        // Can do as many GET requests with an old pwd hash as we want, it's POST that will screw us,
+        // so no need to lock non-POST requests.
+        kol.RequestMutex.Lock()
+        defer kol.RequestMutex.Unlock()
+    }
+
+    newHash  := kol.PasswordHash
+
     var oldBody []byte // keep it around in case we need to retry
     if req.GetBody != nil {
         r, _ := req.GetBody()
         oldBody, _ = ioutil.ReadAll(r)
     }
+
+    if oldHash != newHash {
+        req = SwapInNewPasswordHash(req, oldBody, oldHash, newHash)
+        if req == nil {
+            return nil, errors.New("Failed to recreate request with new password hash after reconnect")
+        }
+    }
+
     body, err := kol.DoHTTPInternal(req)
     if err == nil {
         return body, err
@@ -508,7 +552,6 @@ func (kol *relay)DoHTTP(req *http.Request) ([]byte, error) {
     }
 
     // Attempt to reconnect:
-    oldHash  := kol.PasswordHash
     fatalErr := kol.HandleKoLException(err)
     if fatalErr != nil {
         return body, fatalErr
@@ -518,26 +561,9 @@ func (kol *relay)DoHTTP(req *http.Request) ([]byte, error) {
     // of what the outcome is:
     // Shitty part: we need to replace the old pwd hash with the current one.
     // Must do this in the url & in the body
-    newHash    := kol.PasswordHash
-
-    newUrl := strings.Replace(req.URL.String(), `=` + oldHash, `=` + newHash, -1)
-    var newParams *bytes.Reader
-    if req.Body != nil {
-        newBody    := bytes.Replace(oldBody, []byte(`=` + oldHash), []byte(`=` + newHash), -1)
-        if len(newBody) > 0 {
-            newParams   = bytes.NewReader(newBody)
-        }
-    }
-
-    newRequest, err := http.NewRequest(req.Method, newUrl, newParams)
-    if err != nil {
-        fmt.Println("Failed to retry request:", err)
-        return body, err
-    }
-    for k, values := range req.Header {
-        for _, v := range values {
-            newRequest.Header.Add(k, v)
-        }
+    newRequest := SwapInNewPasswordHash(req, oldBody, oldHash, kol.PasswordHash)
+    if newRequest == nil {
+        return body, errors.New("Failed to recreate request with new password hash after reconnect")
     }
     return kol.DoHTTPInternal(newRequest)
 }
@@ -849,7 +875,7 @@ func (kol *relay) queryLChat() ([]byte, error) {
         return nil, err
     }
 
-    return kol.DoHTTP(req)
+    return kol.DoHTTPInternal(req)
 }
 
 var passwordHashPatterns = []*regexp.Regexp {
