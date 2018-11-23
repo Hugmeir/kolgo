@@ -307,7 +307,7 @@ func DecodeOutstandingZataraConsults(b []byte) []*Player {
         if len(innerm) == 0 {
             continue
         }
-        id := innerm[0]
+        id := innerm[1]
         players = append(players, &Player{
             ID:   id,
             Name: name,
