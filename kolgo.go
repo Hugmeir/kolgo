@@ -33,6 +33,7 @@ const (
     showPlayerUrl    = baseUrl + "showplayer.php"
     apiUrl           = baseUrl + "api.php"
     curseUrl         = baseUrl + "curse.php"
+    mallStoreUrl     = baseUrl + "mallstore.php"
 )
 
 type MsgType int
@@ -87,6 +88,7 @@ type KoLRelay interface {
     DecodeChat([]byte)         (*ChatResponse, error)
     SenderIdFromMessage(ChatMessage) string
     Curse(string, *Item)       ([]byte, error)
+    MallStore(string)          ([]byte, error)
 
     ResetAwayTicker()
 
@@ -882,6 +884,15 @@ func (kol *relay) queryLChat() ([]byte, error) {
     }
 
     return kol.DoHTTPInternal(req)
+}
+
+func (kol *relay) MallStore(storeId string) ([]byte, error) {
+    req, err   := http.NewRequest("GET", fmt.Sprintf("%s?whichstore=%s", mallStoreUrl, storeId), nil)
+    if err != nil {
+        return nil, err
+    }
+
+    return kol.DoHTTP(req)
 }
 
 var passwordHashPatterns = []*regexp.Regexp {

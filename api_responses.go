@@ -316,3 +316,25 @@ func DecodeOutstandingZataraConsults(b []byte) []*Player {
 
     return players
 }
+
+/*
+<input name="whichitem" type="radio" value="4358001699000" onclick="selecteditem=4358001699000"></td><td><img src="/images/itemimages/book3.gif" class="hand   " onclick="descitem(981406827)"></td><td valign="center"><b>A Crimbo Carol, Ch. 5</b> (1) </td><td>1,699,000 Meat</td></tr><tr><td><input name="whichitem" type="radio" value="883   1198123123" onclick="selecteditem=8831198123123"></td><td><img src="/images/itemimages/baskinrobin.gif" class="hand" onclick="descitem(662653769)"></td><td valign="center"><b>bas   king robin</b> (1) </td><td>198,123,123 Meat</td></tr><tr><td><input name="whichitem" type="radio" value="9927999999999" onclick="selecteditem=9927999999999"></td><td><img src="/   images/itemimages/bbattcrate.gif" class="
+*/
+var mallEntryMatcher = regexp.MustCompile(`(?i)value=["']?([0-9]+)["']?.+?descitem\(([^\)]+)\).+?</b> \(([0-9,]+)\)`)
+func DecodeMallStore(b []byte) []MallEntry {
+    matches := mallEntryMatcher.FindAllStringSubmatch(string(b), -1)
+    entries := make([]MallEntry, 0, len(matches))
+    for _, m := range matches {
+        value, _ := strconv.Atoi(m[1])
+        descID   := m[2]
+        item     := DescIDToItem(descID)
+        amount, _ := strconv.Atoi(strings.Replace(m[3], `,`, ``, -1))
+        entries  = append(entries, MallEntry{
+            Item: item,
+            Price: value,
+            Amount: amount,
+        })
+    }
+    return entries
+}
+

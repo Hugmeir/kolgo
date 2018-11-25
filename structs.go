@@ -32,3 +32,9 @@ type KMail struct {
     Message KMailMessage
 }
 
+type MallEntry struct {
+    Item *Item
+    Amount int
+    Price  int
+}
+
