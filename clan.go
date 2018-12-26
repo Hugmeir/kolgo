@@ -212,6 +212,7 @@ func (kol *relay)ClanVIPFax() ([]byte, error) {
 
 func (kol *relay)ClanVIPRecieveFax() ([]byte, error) {
     params := url.Values{}
+    params.Set(`pwd`,        kol.PasswordHash)
     params.Set(`preaction`, `receivefax`)
     params.Set(`whichfloor`, `2`)
     paramsBody := strings.NewReader(params.Encode())
@@ -224,6 +225,7 @@ func (kol *relay)ClanVIPRecieveFax() ([]byte, error) {
 
 func (kol *relay)ClanVIPSendFax() ([]byte, error) {
     params := url.Values{}
+    params.Set(`pwd`,        kol.PasswordHash)
     params.Set(`preaction`, `sendfax`)
     params.Set(`whichfloor`, `2`)
     paramsBody := strings.NewReader(params.Encode())
