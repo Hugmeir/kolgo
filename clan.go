@@ -202,6 +202,38 @@ func (kol *relay) ClanTakeFromStash(item *Item, amount int) ([]byte, error) {
     return kol.DoHTTP(req)
 }
 
+func (kol *relay)ClanVIPFax() ([]byte, error) {
+    req, err := http.NewRequest("GET", clanVIPUrl + "?preaction=faxmachine&whichfloor=2", nil)
+    if err != nil {
+        return nil, err
+    }
+    return kol.DoHTTP(req)
+}
+
+func (kol *relay)ClanVIPRecieveFax() ([]byte, error) {
+    params := url.Values{}
+    params.Set(`preaction`, `receivefax`)
+    params.Set(`whichfloor`, `2`)
+    paramsBody := strings.NewReader(params.Encode())
+    req, err := http.NewRequest("POST", clanVIPUrl, paramsBody)
+    if err != nil {
+        return nil, err
+    }
+    return kol.DoHTTP(req)
+}
+
+func (kol *relay)ClanVIPSendFax() ([]byte, error) {
+    params := url.Values{}
+    params.Set(`preaction`, `sendfax`)
+    params.Set(`whichfloor`, `2`)
+    paramsBody := strings.NewReader(params.Encode())
+    req, err := http.NewRequest("GET", clanVIPUrl, paramsBody)
+    if err != nil {
+        return nil, err
+    }
+    return kol.DoHTTP(req)
+}
+
 func (kol *relay)ClanVIPFortune() ([]byte, error) {
     req, err := http.NewRequest("GET", clanVIPUrl + "?preaction=lovetester", nil)
     if err != nil {

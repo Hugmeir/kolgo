@@ -34,6 +34,7 @@ const (
     apiUrl           = baseUrl + "api.php"
     curseUrl         = baseUrl + "curse.php"
     mallStoreUrl     = baseUrl + "mallstore.php"
+    itemDescUrl      = baseUrl + "desc_item.php"
 )
 
 type MsgType int
@@ -69,6 +70,9 @@ type KoLRelay interface {
     ClanMembers(int)           ([]byte, error)
     ClanStash()                ([]byte, error)
     ClanVIPFortune()           ([]byte, error)
+    ClanVIPFax()               ([]byte, error)
+    ClanVIPRecieveFax()        ([]byte, error)
+    ClanVIPSendFax()           ([]byte, error)
 
     ClanTakeFromStash(*Item, int)                    ([]byte, error)
     ClanProcessApplication(string, bool)             ([]byte, error)
@@ -78,6 +82,8 @@ type KoLRelay interface {
     ClanResponseLoveTest(string, string, string, string) ([]byte, error)
 
     ShowPlayer(string) ([]byte, error)
+
+    ItemDescription(*Item) ([]byte, error)
 
     // Not-so-public interface:
     SubmitChat(string, string) ([]byte, error)
@@ -888,6 +894,16 @@ func (kol *relay) queryLChat() ([]byte, error) {
 
 func (kol *relay) MallStore(storeId string) ([]byte, error) {
     req, err   := http.NewRequest("GET", fmt.Sprintf("%s?whichstore=%s", mallStoreUrl, storeId), nil)
+    if err != nil {
+        return nil, err
+    }
+
+    return kol.DoHTTP(req)
+}
+
+func (kol *relay)ItemDescription(item *Item) ([]byte, error) {
+    finalUrl   := fmt.Sprintf("%s?whichitem=%s", itemDescUrl, item.DescID)
+    req, err   := http.NewRequest("GET", finalUrl, nil)
     if err != nil {
         return nil, err
     }
